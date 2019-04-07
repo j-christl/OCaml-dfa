@@ -58,6 +58,41 @@ let rec dfa_process (automaton_:dfa) (input_:string) =
         let _,_,_,start_state,_ = automaton_ in
         dfa_step automaton_ (string_to_charlist input_) start_state
 
+(* val print_dfa_graphviz : dfa -> string
+ *
+ * Converts the given dfa into its graphviz string
+ *)
+let print_dfa_graphviz (automaton_:dfa) =
+  let rec print_accept_states accept_states_ =
+    match accept_states_ with
+      | [] -> ""
+      | x::xs -> "  \"" ^ x ^ "\" [shape=doublecircle]\n" ^ (print_accept_states xs)
+  in let rec print_states states_set_ accept_states_ =
+    match states_set_ with
+      | [] -> ""
+      | x::xs -> (if (list_contains accept_states_ x) then (print_states xs accept_states_)
+                  else ("  \"" ^ x ^ "\" [shape=circle]\n" ^ (print_states xs accept_states_)))
+  in let rec process_letter letter transit_fun_ states_set_ =
+    match states_set_ with
+      | [] -> ""
+      | curr_state::rest_states ->
+          let result_state = try (transit_fun_ curr_state letter) with (Failure _) -> (process_letter letter transit_fun_ rest_states) in
+            ("  \"" ^ curr_state ^ "\" -> \"" ^ result_state ^ "\" [label=\"" ^ (String.make 1 letter) ^ "\"]\n") ^ (process_letter letter transit_fun_ rest_states)
+  in let rec print_transitions transit_fun_ alphabet_ states_set_ =
+    match alphabet_ with
+      | [] -> ""
+      | x::xs -> (process_letter x transit_fun_ states_set_) ^ (print_transitions transit_fun_ xs states_set_)
+  in let impl automaton =
+    let states_set, alphabet, transit_fun,start_state,accept_states = automaton in
+    "digraph dfa {\n  rankdir=\"LR\"\n  \"\" [shape=none]\n"
+    ^ ("")
+    ^ (print_accept_states accept_states)
+    ^ (print_states states_set accept_states)
+    ^ ("  \"\" -> " ^ start_state ^ "\n")
+    ^ (print_transitions transit_fun alphabet states_set)
+    ^ "}"
+  in impl automaton_
+
 (* -----
  * Example automata
  * ----- 
@@ -75,7 +110,25 @@ let automaton_binary_only_ones =
                     (fun state input -> match state with
                                                 | "q1" -> if input = '0' then "q2" else "q1"
                                                 | "q2" -> "q2"
-                                                | _ -> raise (Failure "Invalid input")
+                                                | _ -> raise (Failure "Invalid")
                     ), (* δ: transition function *)
                     "q1", (* q0: start state *)
                     ["q1"] (* F: set of accept states *)
+
+(* second example automaton: It accepts binary inputs which are multiples of three
+ * (See https://en.wikipedia.org/wiki/Deterministic_finite_automaton#/media/File:DFA_example_multiplies_of_3.svg )
+ * examples: "11"   -> accepted
+ *           "110"  -> accepted
+ *           "111"  -> not accepted
+ *)
+let automaton_binary_multiples_of_three =  
+                    ["q0";"q1";"q2"], (* Q: set of states *)
+                    ['0';'1'],   (* Σ: alphabet *)  
+                    (fun state input -> match state with
+                                                | "q0" -> if input = '0' then "q0" else "q1"
+                                                | "q1" -> if input = '0' then "q2" else "q0"
+                                                | "q2" -> if input = '0' then "q1" else "q2"
+                                                | _ -> raise (Failure "Invalid")
+                    ), (* δ: transition function *)
+                    "q0", (* q0: start state *)
+                    ["q0"] (* F: set of accept states *)
